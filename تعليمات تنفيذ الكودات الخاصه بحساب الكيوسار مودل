@@ -1,0 +1,121 @@
+# دستور QSAR الكامل — من الداتا للصور
+
+---
+
+## المرحلة 1 — رفع الملفات للسيرفر (من المحلي)
+
+```bash
+cd ~/Desktop/qsar_model
+scp qsar_builder_v2.py qsar_visualize.py run_qsar_v2.slurm \
+    CHEMBL279_pIC50_IC50.csv \
+    iq26ys1@front01.hpcf.cyi.ac.cy:~/SOFTWARE/AutoQSAR/qsar_model/
+```
+
+---
+
+## المرحلة 2 — ادخل السيرفر وأرسل المهمة
+
+```bash
+ssh iq26ys1@front01.hpcf.cyi.ac.cy
+cd ~/SOFTWARE/AutoQSAR/qsar_model
+conda activate qsar_env
+sbatch run_qsar_v2.slurm
+```
+
+---
+
+## المرحلة 3 — راقب التقدّم
+
+```bash
+# كل 15-20 دقيقة:
+squeue -u iq26ys1 ; echo "---" ; tail -8 qsar_v2_*.out
+```
+
+**ترتيب المراحل الطبيعي:**
+```
+1) Curation          ← دقيقة
+2) Featurization     ← 10-15 دقيقة
+3) GPU check         ← ثانية
+4) Scaffold split    ← ثانية
+5) Activity cliffs   ← دقائق
+6) Benchmark (9 توليفات) ← 1-3 ساعات  ← الأطول
+7-11) التحقق+الحفظ  ← دقائق
+```
+
+**المهمة خلصت لمن تختفي من `squeue`.**
+
+---
+
+## المرحلة 4 — تحقّق من النتائج
+
+```bash
+# لازم تشوف هذي الملفات:
+ls qsar_output_v2/
+# best_qsar_model.pkl  metrics.json  curated_dataset.csv
+# benchmark_all_combos.csv  predictions_test.csv
+
+# اقرأ الأرقام:
+cat qsar_output_v2/metrics.json
+echo "====="
+cat qsar_output_v2/benchmark_all_combos.csv
+```
+
+---
+
+## المرحلة 5 — شغّل الـ Visualization بالسيرفر
+
+```bash
+# لازم تكون داخل السيرفر + qsar_env:
+cd ~/SOFTWARE/AutoQSAR/qsar_model
+conda activate qsar_env
+python qsar_visualize.py
+```
+
+**لازم تشوف:**
+```
+رسم 1: predicted vs experimental
+رسم 2: residuals
+...
+رسم 8: summary panel
+✅ خلص. الصور في: qsar_output_v2/figures
+```
+
+---
+
+## المرحلة 6 — نزّل النتائج للمحلي
+
+```bash
+# اخرج من السيرفر أول:
+exit
+
+# من المحلي — نزّل كل شي:
+cd ~/Desktop/qsar_model
+scp -r iq26ys1@front01.hpcf.cyi.ac.cy:~/SOFTWARE/AutoQSAR/qsar_model/qsar_output_v2 ./qsar_output_v2
+```
+
+---
+
+## المرحلة 7 — شوف الصور محلياً
+
+```bash
+xdg-open ~/Desktop/qsar_model/qsar_output_v2/figures/
+```
+
+---
+
+## قواعد ثابتة لا تتغيّر
+
+| القاعدة | السبب |
+|---|---|
+| **الـ visualization دائماً بالسيرفر** | تعارض sklearn يكسر الصور محلياً |
+| **ما تحمّل الـ pkl محلياً** | نفس السبب — بس الصور والـ CSV |
+| **نظّف ملفات المهام قبل رن جديد** | `rm -f qsar_v2_*.out qsar_v2_*.err` |
+| **لو بدّلت الداتا — بدّل OUTPUT_DIR** | حتى ما يختلط مع نتائج قديمة |
+
+---
+
+## الخلاصة بجملة وحدة
+
+```
+رفع → sbatch → راقب → تحقق من النتائج → viz بالسيرفر → نزّل → شوف
+```
